@@ -179,13 +179,13 @@ print("- Эксцесс: Много экстримальных значений 
 print("- Доверительный интервал для среднего: Показывает, что средний дебит будет лежать в 24.75-27.43 с вероятностью 95.")
 print("- Доверительный интервал для стандартного отклонения: Показывает, что СКО будет лежать в (3.94, 5.88) с вероятностью 95..")
 
-# Left-hand side of the equation
+# Левая сторона формулы
 sum_ni = np.sum(frequency)  # Σn_i
 sum_ni_ui = np.sum(frequency * conditional_variants)  # Σn_i u_i
 sum_ni_ui2 = np.sum(frequency * conditional_variants**2)  # Σn_i u_i^2
 left_side = sum_ni + 2 * sum_ni_ui + sum_ni_ui2
 
-# Right-hand side of the equation
+# Праваяф сторона КС
 sum_ni_ui_plus_1_squared = np.sum(frequency * (conditional_variants + 1)**2)  # Σn_i (u_i + 1)^2
 right_side = sum_ni_ui_plus_1_squared
 
@@ -196,19 +196,18 @@ print(f"Σn_i u_i: {sum_ni_ui:.4f}")
 print(f"Σn_i u_i^2: {sum_ni_ui2:.4f}")
 print(f"Левая часть (Σn_i + 2Σn_i u_i + Σn_i u_i^2): {left_side:.4f}")
 print(f"Правая часть (Σn_i (u_i + 1)^2): {right_side:.4f}")
+summ = abs(left_side - right_side) < 1e-10
+control_result = pd.DataFrame({
+    'Σn_i': [sum_ni],
+    'Σn_i u_i': [sum_ni_ui],
+    'Σn_i u_i^2': [sum_ni_ui2],
+    'Левая часть (Σn_i + 2Σn_i u_i + Σn_i u_i^2)': [left_side],
+    'Правая часть (Σn_i (u_i + 1)^2)': [right_side],
+    'Правильность суммы': [summ]
+}, index=[0])
+control_result.to_csv(filename, mode='a')
 
-control_results = pd.DataFrame({
-    'Σn_i': sum_ni,
-    'Σn_i u_i': sum_ni_ui,
-    'Σn_i u_i^2': sum_ni_ui2,
-    'Левая часть (Σn_i + 2Σn_i u_i + Σn_i u_i^2)': left_side,
-    'Правая часть (Σn_i (u_i + 1)^2)': right_side,
-    'Правильность суммы': "Верна" if left_side == right_side else "Неверена"
-})
-control_results.to_csv(filename, mode='a')
-
-# Check if the control is satisfied
-if abs(left_side - right_side) < 1e-10:  # Small tolerance for floating-point comparison
+if summ:
     print("Контроль пройден: обе части уравнения равны.")
 else:
     print("Контроль не пройден: разница между частями уравнения значительна.")
