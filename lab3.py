@@ -115,10 +115,10 @@ with open('lab3_variant14.txt', 'w', encoding='utf-8') as f:
 
     # 4. Эмпирические уравнения линий регрессий
     f.write("4. Эмпирические уравнения регрессий.\n")
-    a1, a0 = get_y_on_x_coeffs(y_bar, x_bar, r, Sy, Sx)
+    a0, a1 = get_y_on_x_coeffs(y_bar, x_bar, r, Sy, Sx)
     f.write(f"y на x: y = {a0:.2f} + {a1:.2f} x\n")
 
-    b1, b0 = get_x_on_y_coeffs(x_bar, y_bar, r, Sx, Sy)
+    b0, b1 = get_x_on_y_coeffs(x_bar, y_bar, r, Sx, Sy)
     f.write(f"x на y: x = {b0:.2f} + {b1:.2f} y\n")
 
     # Контроль
