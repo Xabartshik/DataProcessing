@@ -346,13 +346,11 @@ x_line2 = c1 * y_line2 + c0
 plt.plot(x_line2, y_line2, 'g--', linewidth=2, alpha=0.8, label=f'x = {c1:.3f}y {c0:+.0f}')
 
 # 5) Линия тренда (polyfit) по новому распределению (совпадает с МНК)
-slope, intercept = np.polyfit(np.array(x_points), np.array(y_points), 1)
+
+# slope, intercept = np.polyfit(np.array(x_points), np.array(y_points), 1)
+slope, intercept = np.polyfit(np.array(x_values), np.array(y_conditional_by_x), 1)
 trend = slope * x_line + intercept
 plt.plot(x_line, trend, 'b--', linewidth=2, label='Линия тренда (условные средние)')
-
-# Средние значения
-plt.axvline(x_mean, color='orange', linestyle=':', alpha=0.7, label=f'x̄ = {x_mean:.0f}')
-plt.axhline(y_mean, color='orange', linestyle=':', alpha=0.7, label=f'ȳ = {y_mean:.0f}')
 
 plt.xlabel('Производительность труда X (руб.)', fontsize=12)
 plt.ylabel('Средняя заработная плата Y (руб.)', fontsize=12)
