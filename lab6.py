@@ -39,7 +39,7 @@ print()
 rng = np.random.default_rng(2002)
 n_samples = 50
 dim = 6
-X = rng.normal(loc=0.0, scale=0.1, size=(n_samples, dim)).astype(float)
+X = rng.normal(loc=0.0, scale=0.15, size=(n_samples, dim)).astype(float)
 
 print("Сформирована выборка:")
 print(f" n = {n_samples}, dim = {dim}")
@@ -305,7 +305,7 @@ def make_spherical_voronoi_patches(C, colors):
             patches.append(go.Mesh3d(
                 x=verts_all[:,0], y=verts_all[:,1], z=verts_all[:,2],
                 i=tri_i, j=tri_j, k=tri_k,
-                color=colors[cid % len(colors)], opacity=0.45,
+                color=colors[cid % len(colors)], opacity=1,
                 name=f"cluster {cid} region"
             ))
     except Exception as e:
@@ -376,4 +376,137 @@ if 'best_solution_sklearn' in globals() and best_solution_sklearn is not None:
     print(f"[OK] Сфера (sklearn.KMeans) сохранена в {sphere_html_sklearn}")
 
 
+
+
+
+
+
+
+
+# # === Две сферы на кластера: (1,2,3) и (4,5,6) для моего KMeans и sklearn.KMeans ===
+# print("=== Сферы по поднаборам измерений (1-3) и (4-6) для двух решений ===")
+#
+# import os
+# os.makedirs("figures", exist_ok=True)
+#
+# import numpy as np
+# import plotly.graph_objects as go
+# import plotly.io as pio
+# import plotly.colors as pc
+#
+# palette = pc.qualitative.Plotly
+# def color_for(j): return palette[j % len(palette)]
+#
+# def normalize_rows(A):
+#     nrm = np.linalg.norm(A, axis=1, keepdims=True)
+#     return A / np.clip(nrm, 1e-12, None)
+#
+# def make_support_sphere(res_phi=40, res_theta=80):
+#     phi = np.linspace(0, np.pi, res_phi)
+#     theta = np.linspace(0, 2*np.pi, res_theta)
+#     pp, tt = np.meshgrid(phi, theta, indexing="ij")
+#     xs = (np.sin(pp) * np.cos(tt)).ravel()
+#     ys = (np.sin(pp) * np.sin(tt)).ravel()
+#     zs = (np.cos(pp)).ravel()
+#     return go.Mesh3d(
+#         x=xs, y=ys, z=zs,
+#         color="lightgray", opacity=0.15,
+#         alphahull=0, name="sphere"
+#     )
+#
+# def make_spherical_voronoi_patches(C, colors):
+#     patches = []
+#     try:
+#         from scipy.spatial import SphericalVoronoi
+#         sv = SphericalVoronoi(C, radius=1.0, center=np.array([0.0, 0.0, 0.0]))
+#         sv.sort_vertices_of_regions()
+#         for cid, region in enumerate(sv.regions):
+#             verts = sv.vertices[region]
+#             centroid = verts.mean(axis=0)
+#             centroid /= np.linalg.norm(centroid)
+#             verts_all = np.vstack([centroid[None, :], verts])
+#             tri_i, tri_j, tri_k = [], [], []
+#             for j in range(len(verts)):
+#                 a = 1 + j
+#                 b = 1 + ((j + 1) % len(verts))
+#                 tri_i.append(0); tri_j.append(a); tri_k.append(b)
+#             patches.append(go.Mesh3d(
+#                 x=verts_all[:,0], y=verts_all[:,1], z=verts_all[:,2],
+#                 i=tri_i, j=tri_j, k=tri_k,
+#                 color=colors[cid % len(colors)], opacity=1,
+#                 name=f"cluster {cid} region"
+#             ))
+#     except Exception as e:
+#         print(f"[WARN] SphericalVoronoi не построен: {e}")
+#     return patches
+#
+# def make_cluster_scatters(P, labels, k):
+#     scatters = []
+#     for j in range(k):
+#         m = (labels == j)
+#         if not np.any(m): continue
+#         d = P[m]
+#         scatters.append(go.Scatter3d(
+#             x=d[:,0], y=d[:,1], z=d[:,2],
+#             mode="markers",
+#             marker=dict(size=4, color=color_for(j)),
+#             name=f"cluster {j}"
+#         ))
+#     return scatters
+#
+# def build_two_spheres_for_dims(tag, X, labels, centers, k, dims_triplets, title_prefix):
+#     for dims in dims_triplets:
+#         # dims — кортеж индексов измерений, напр. (0,1,2) или (3,4,5)
+#         X_sel = X[:, dims]                 # (n, 3)
+#         C_sel = centers[:, dims]           # (k, 3)
+#         P = normalize_rows(X_sel)          # точки на S^2
+#         C = normalize_rows(C_sel)          # центры на S^2
+#
+#         sphere = make_support_sphere()
+#         scatters = make_cluster_scatters(P, labels, k)
+#         patches = make_spherical_voronoi_patches(C, [color_for(j) for j in range(k)])
+#
+#         fig = go.Figure(data=[sphere] + patches + scatters)
+#         fig.update_layout(
+#             scene=dict(
+#                 xaxis=dict(showgrid=False, zeroline=False, title=f"dim {dims[0]+1}"),
+#                 yaxis=dict(showgrid=False, zeroline=False, title=f"dim {dims[1]+1}"),
+#                 zaxis=dict(showgrid=False, zeroline=False, title=f"dim {dims[2]+1}"),
+#                 aspectmode="data"
+#             ),
+#             margin=dict(l=0, r=0, t=0, b=0),
+#             title=f"{title_prefix}: сфера по измерениям {dims[0]+1},{dims[1]+1},{dims[2]+1} (k={k})"
+#         )
+#         out = os.path.join(
+#             "figures",
+#             f"lab6_sphere_{dims[0]+1}{dims[1]+1}{dims[2]+1}_{tag}.html"
+#         )
+#         pio.write_html(fig, file=out, auto_open=False, include_plotlyjs="cdn")
+#         print(f"[OK] Сфера ({title_prefix}, dims={dims[0]+1}{dims[1]+1}{dims[2]+1}) сохранена в {out}")
+#
+# # --- Сферы для моего KMeans (kmeans_numpy) ---
+# dims_list = [(0,1,2), (3,4,5)]
+# build_two_spheres_for_dims(
+#     tag="numpy",
+#     X=X,
+#     labels=labels,
+#     centers=centers,
+#     k=k_star,
+#     dims_triplets=dims_list,
+#     title_prefix="Моё kmeans"
+# )
+#
+# # --- Сферы для sklearn.KMeans (если доступно) ---
+# if 'best_solution_sklearn' in globals() and best_solution_sklearn is not None:
+#     build_two_spheres_for_dims(
+#         tag="sklearn",
+#         X=X,
+#         labels=labels_sk,
+#         centers=centers_sk,
+#         k=k_star_sk,
+#         dims_triplets=dims_list,
+#         title_prefix="sklearn.KMeans"
+#     )
+#
+#
 
