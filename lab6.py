@@ -336,7 +336,7 @@ sphere_numpy = make_support_sphere()
 patches_numpy = make_spherical_voronoi_patches(C, [color_for(j) for j in range(k_star)])
 scatters_numpy = make_cluster_scatters(P, labels, k_star)
 
-fig_numpy = go.Figure(data=[sphere_numpy] + patches_numpy + scatters_numpy)
+fig_numpy = go.Figure(data=[sphere_numpy] + scatters_numpy + patches_numpy)
 fig_numpy.update_layout(
     scene=dict(
         xaxis=dict(showgrid=False, zeroline=False, title=""),
@@ -466,7 +466,7 @@ if 'best_solution_sklearn' in globals() and best_solution_sklearn is not None:
 #         scatters = make_cluster_scatters(P, labels, k)
 #         patches = make_spherical_voronoi_patches(C, [color_for(j) for j in range(k)])
 #
-#         fig = go.Figure(data=[sphere] + patches + scatters)
+#         fig = go.Figure(data=[sphere] + scatters + patches)
 #         fig.update_layout(
 #             scene=dict(
 #                 xaxis=dict(showgrid=False, zeroline=False, title=f"dim {dims[0]+1}"),
