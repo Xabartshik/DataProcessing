@@ -243,95 +243,101 @@ else:
     print()
 
 
-print("=== Визуализация на сфере (Plotly) ===")
+# === Визуализация на сфере (две версии: kmeans_numpy и sklearn.KMeans) ===
+print("=== Визуализация на сфере (Plotly): мое kmeans и sklearn.KMeans ===")
 
 import os
 os.makedirs("figures", exist_ok=True)
 
-# 1) PCA в 3D и нормировка на единичную сферу
-from sklearn.decomposition import PCA
 import numpy as np
+from sklearn.decomposition import PCA
+import plotly.graph_objects as go
+import plotly.io as pio
 
+# 1) Проекция в 3D и нормировка на единичную сферу
 pca3 = PCA(n_components=3, random_state=42)
-X3d = pca3.fit_transform(X)                  # (n, 3)
-centers3d = pca3.transform(centers)          # (k*, 3)
+X3d = pca3.fit_transform(X)
 
 def normalize_rows(A):
     nrm = np.linalg.norm(A, axis=1, keepdims=True)
     return A / np.clip(nrm, 1e-12, None)
 
-P = normalize_rows(X3d)       # точки на S^2
-C = normalize_rows(centers3d) # центры на S^2
+P = normalize_rows(X3d)  # точки на S^2 (общие для обеих визуализаций)
 
-# 2) Подготовка цветов по кластерам
+# Палитра цветов
 import plotly.colors as pc
 palette = pc.qualitative.Plotly
 def color_for(j):
     return palette[j % len(palette)]
 
-# 3) Построение полупрозрачной сферы как Mesh3d
-import plotly.graph_objects as go
+# Вспомогательная функция построения опорной сферы как Mesh3d
+def make_support_sphere(res_phi=40, res_theta=80):
+    phi = np.linspace(0, np.pi, res_phi)
+    theta = np.linspace(0, 2*np.pi, res_theta)
+    pp, tt = np.meshgrid(phi, theta, indexing="ij")
+    xs = (np.sin(pp) * np.cos(tt)).ravel()
+    ys = (np.sin(pp) * np.sin(tt)).ravel()
+    zs = (np.cos(pp)).ravel()
+    return go.Mesh3d(
+        x=xs, y=ys, z=zs,
+        color="lightgray", opacity=0.15,
+        alphahull=0,
+        name="sphere"
+    )
 
-phi = np.linspace(0, np.pi, 40)
-theta = np.linspace(0, 2*np.pi, 80)
-pp, tt = np.meshgrid(phi, theta, indexing="ij")
-xs = (np.sin(pp) * np.cos(tt)).ravel()
-ys = (np.sin(pp) * np.sin(tt)).ravel()
-zs = (np.cos(pp)).ravel()
+# Вспомогательная функция построения сферических областей (Вороной) по центрам
+def make_spherical_voronoi_patches(C, colors):
+    patches = []
+    try:
+        from scipy.spatial import SphericalVoronoi
+        sv = SphericalVoronoi(C, radius=1.0, center=np.array([0.0, 0.0, 0.0]))
+        sv.sort_vertices_of_regions()
+        for cid, region in enumerate(sv.regions):
+            verts = sv.vertices[region]  # (m,3)
+            centroid = verts.mean(axis=0)
+            centroid /= np.linalg.norm(centroid)
+            verts_all = np.vstack([centroid[None, :], verts])
+            tri_i, tri_j, tri_k = [], [], []
+            for j in range(len(verts)):
+                a = 1 + j
+                b = 1 + ((j + 1) % len(verts))
+                tri_i.append(0); tri_j.append(a); tri_k.append(b)
+            patches.append(go.Mesh3d(
+                x=verts_all[:,0], y=verts_all[:,1], z=verts_all[:,2],
+                i=tri_i, j=tri_j, k=tri_k,
+                color=colors[cid % len(colors)], opacity=0.45,
+                name=f"cluster {cid} region"
+            ))
+    except Exception as e:
+        print(f"[WARN] SphericalVoronoi не построен: {e}")
+    return patches
 
-sphere = go.Mesh3d(
-    x=xs, y=ys, z=zs,
-    color="lightgray", opacity=0.15,
-    alphahull=0,  # выпуклая оболочка точек -> гладкая сфера
-    name="sphere"
-)
-
-# 4) Точки кластеров поверх сферы
-scatters = []
-for j in range(k_star):
-    mask = (labels == j)
-    if not np.any(mask):
-        continue
-    d = P[mask]
-    scatters.append(go.Scatter3d(
-        x=d[:,0], y=d[:,1], z=d[:,2],
-        mode="markers",
-        marker=dict(size=4, color=color_for(j)),
-        name=f"cluster {j}"
-    ))
-
-# 5) Сферический Вороной по центрам кластеров -> полигональные поверхности
-patches = []
-try:
-    from scipy.spatial import SphericalVoronoi
-    sv = SphericalVoronoi(C, radius=1.0, center=np.array([0.0, 0.0, 0.0]))
-    sv.sort_vertices_of_regions()  # упорядочить вершины для отрисовки
-
-    for cid, region in enumerate(sv.regions):
-        verts = sv.vertices[region]    # (m, 3) вершины сферического полигона
-        # триангуляция "веером" от центроида
-        centroid = verts.mean(axis=0)
-        centroid /= np.linalg.norm(centroid)
-        verts_all = np.vstack([centroid[None, :], verts])
-
-        tri_i, tri_j, tri_k = [], [], []
-        for j in range(len(verts)):
-            a = 1 + j
-            b = 1 + ((j + 1) % len(verts))
-            tri_i.append(0); tri_j.append(a); tri_k.append(b)
-
-        patches.append(go.Mesh3d(
-            x=verts_all[:,0], y=verts_all[:,1], z=verts_all[:,2],
-            i=tri_i, j=tri_j, k=tri_k,
-            color=color_for(cid), opacity=0.45,
-            name=f"cluster {cid} region"
+# Вспомогательная функция scatter-точек по меткам
+def make_cluster_scatters(P, labels, k):
+    scatters = []
+    for j in range(k):
+        m = (labels == j)
+        if not np.any(m):
+            continue
+        d = P[m]
+        scatters.append(go.Scatter3d(
+            x=d[:,0], y=d[:,1], z=d[:,2],
+            mode="markers",
+            marker=dict(size=4, color=color_for(j)),
+            name=f"cluster {j}"
         ))
-except Exception as e:
-    print(f"[WARN] SphericalVoronoi недоступен или не удалось построить области: {e}")
+    return scatters
 
-# 6) Финальная фигура Plotly + сохранение в HTML
-fig = go.Figure(data=[sphere] + patches + scatters)
-fig.update_layout(
+# 2) Сфера для моей реализации kmeans_numpy
+centers3d = pca3.transform(centers)
+C = normalize_rows(centers3d)
+
+sphere_numpy = make_support_sphere()
+patches_numpy = make_spherical_voronoi_patches(C, [color_for(j) for j in range(k_star)])
+scatters_numpy = make_cluster_scatters(P, labels, k_star)
+
+fig_numpy = go.Figure(data=[sphere_numpy] + patches_numpy + scatters_numpy)
+fig_numpy.update_layout(
     scene=dict(
         xaxis=dict(showgrid=False, zeroline=False, title=""),
         yaxis=dict(showgrid=False, zeroline=False, title=""),
@@ -339,11 +345,35 @@ fig.update_layout(
         aspectmode="data"
     ),
     margin=dict(l=0, r=0, t=0, b=0),
-    title=f"ЛР6 Вариант 14: кластеры на сфере (k*={k_star}, порог < {radius_threshold})"
+    title=f"ЛР6: кластеры на сфере (моё kmeans, k*={k_star}, порог < {radius_threshold})"
 )
+sphere_html_numpy = os.path.join("figures", "lab6_sphere_numpy.html")
+pio.write_html(fig_numpy, file=sphere_html_numpy, auto_open=False, include_plotlyjs="cdn")
+print(f"[OK] Сфера (моё kmeans) сохранена в {sphere_html_numpy}")
 
-import plotly.io as pio
-html_path = os.path.join("figures", "lab6_sphere.html")
-pio.write_html(fig, file=html_path, auto_open=False, include_plotlyjs="cdn")
-print(f"Готово: сферическая визуализация сохранена в {html_path}")
+# 3) Сфера для sklearn.KMeans (если решение найдено)
+if 'best_solution_sklearn' in globals() and best_solution_sklearn is not None:
+    centers3d_sk = pca3.transform(centers_sk)
+    C_sk = normalize_rows(centers3d_sk)
+
+    sphere_sklearn = make_support_sphere()
+    patches_sklearn = make_spherical_voronoi_patches(C_sk, [color_for(j) for j in range(k_star_sk)])
+    scatters_sklearn = make_cluster_scatters(P, labels_sk, k_star_sk)
+
+    fig_sklearn = go.Figure(data=[sphere_sklearn] + patches_sklearn + scatters_sklearn)
+    fig_sklearn.update_layout(
+        scene=dict(
+            xaxis=dict(showgrid=False, zeroline=False, title=""),
+            yaxis=dict(showgrid=False, zeroline=False, title=""),
+            zaxis=dict(showgrid=False, zeroline=False, title=""),
+            aspectmode="data"
+        ),
+        margin=dict(l=0, r=0, t=0, b=0),
+        title=f"ЛР6: кластеры на сфере (sklearn, k*={k_star_sk}, порог < {radius_threshold})"
+    )
+    sphere_html_sklearn = os.path.join("figures", "lab6_sphere_sklearn.html")
+    pio.write_html(fig_sklearn, file=sphere_html_sklearn, auto_open=False, include_plotlyjs="cdn")
+    print(f"[OK] Сфера (sklearn.KMeans) сохранена в {sphere_html_sklearn}")
+
+
 
