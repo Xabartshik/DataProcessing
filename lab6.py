@@ -243,75 +243,107 @@ else:
     print()
 
 
-print("=== Визуализация в 2D (PCA, sklearn) ===")
+print("=== Визуализация на сфере (Plotly) ===")
+
+import os
 os.makedirs("figures", exist_ok=True)
 
+# 1) PCA в 3D и нормировка на единичную сферу
 from sklearn.decomposition import PCA
-pca = PCA(n_components=2, random_state=42)  # 2 главные компоненты для 2D
-X2d = pca.fit_transform(X)                 # обучаем PCA и проектируем точки
-centers2d = pca.transform(centers)         # проектируем центры кластеров
+import numpy as np
 
-# График для собственной реализации kmeans_numpy
-plt.figure(figsize=(11, 6))
-palette = plt.get_cmap("tab10", k_star)
-colors = palette(np.linspace(0, 1, k_star))
+pca3 = PCA(n_components=3, random_state=42)
+X3d = pca3.fit_transform(X)                  # (n, 3)
+centers3d = pca3.transform(centers)          # (k*, 3)
+
+def normalize_rows(A):
+    nrm = np.linalg.norm(A, axis=1, keepdims=True)
+    return A / np.clip(nrm, 1e-12, None)
+
+P = normalize_rows(X3d)       # точки на S^2
+C = normalize_rows(centers3d) # центры на S^2
+
+# 2) Подготовка цветов по кластерам
+import plotly.colors as pc
+palette = pc.qualitative.Plotly
+def color_for(j):
+    return palette[j % len(palette)]
+
+# 3) Построение полупрозрачной сферы как Mesh3d
+import plotly.graph_objects as go
+
+phi = np.linspace(0, np.pi, 40)
+theta = np.linspace(0, 2*np.pi, 80)
+pp, tt = np.meshgrid(phi, theta, indexing="ij")
+xs = (np.sin(pp) * np.cos(tt)).ravel()
+ys = (np.sin(pp) * np.sin(tt)).ravel()
+zs = (np.cos(pp)).ravel()
+
+sphere = go.Mesh3d(
+    x=xs, y=ys, z=zs,
+    color="lightgray", opacity=0.15,
+    alphahull=0,  # выпуклая оболочка точек -> гладкая сфера
+    name="sphere"
+)
+
+# 4) Точки кластеров поверх сферы
+scatters = []
 for j in range(k_star):
-    idx = np.where(labels == j)[0]
-    if len(idx) == 0:
+    mask = (labels == j)
+    if not np.any(mask):
         continue
-    plt.scatter(X2d[idx, 0], X2d[idx, 1], s=45, alpha=0.8, color=colors[j],
-                label=f"Кластер {j} (n={len(idx)})")
-plt.scatter(centers2d[:, 0], centers2d[:, 1], s=180, c="k", marker="X",
-            label="Центры (PCA-проекция)")
-plt.title(f"ЛР6 Вариант 14: kmeans_numpy (PCA sklearn), k*={k_star}, порог радиуса < {radius_threshold}")
-plt.xlabel("PC1")
-plt.ylabel("PC2")
-plt.grid(True, alpha=0.25)
-plt.legend(loc="best", ncols=2)
-fig_path_numpy = os.path.join("figures", "lab6_variant14_kmeans_numpy.png")
-plt.tight_layout()
-plt.savefig(fig_path_numpy, dpi=300, bbox_inches="tight")
-plt.show()
-print(f"График (kmeans_numpy, PCA sklearn) сохранен: {fig_path_numpy}")
+    d = P[mask]
+    scatters.append(go.Scatter3d(
+        x=d[:,0], y=d[:,1], z=d[:,2],
+        mode="markers",
+        marker=dict(size=4, color=color_for(j)),
+        name=f"cluster {j}"
+    ))
 
-# График для реализации sklearn.KMeans (если она нашлась)
-if 'best_solution_sklearn' in globals() and best_solution_sklearn is not None:
-    # Проекция центров sklearn-кластеризации тем же обученным PCA
-    centers2d_sk = pca.transform(centers_sk)
+# 5) Сферический Вороной по центрам кластеров -> полигональные поверхности
+patches = []
+try:
+    from scipy.spatial import SphericalVoronoi
+    sv = SphericalVoronoi(C, radius=1.0, center=np.array([0.0, 0.0, 0.0]))
+    sv.sort_vertices_of_regions()  # упорядочить вершины для отрисовки
 
-    plt.figure(figsize=(11, 6))
-    palette_sk = plt.get_cmap("tab10", k_star_sk)
-    colors_sk = palette_sk(np.linspace(0, 1, k_star_sk))
-    for j in range(k_star_sk):
-        idx = np.where(labels_sk == j)[0]
-        if len(idx) == 0:
-            continue
-        plt.scatter(X2d[idx, 0], X2d[idx, 1], s=45, alpha=0.8, color=colors_sk[j],
-                    label=f"Кластер {j} (n={len(idx)})")
-    plt.scatter(centers2d_sk[:, 0], centers2d_sk[:, 1], s=180, c="k", marker="X",
-                label="Центры (PCA-проекция)")
-    plt.title(f"ЛР6 Вариант 14: sklearn.KMeans (PCA sklearn), k*={k_star_sk}, порог радиуса < {radius_threshold}")
-    plt.xlabel("PC1")
-    plt.ylabel("PC2")
-    plt.grid(True, alpha=0.25)
-    plt.legend(loc="best", ncols=2)
-    fig_path_sklearn = os.path.join("figures", "lab6_variant14_kmeans_sklearn.png")
-    plt.tight_layout()
-    plt.savefig(fig_path_sklearn, dpi=300, bbox_inches="tight")
-    plt.show()
-    print(f"График (sklearn.KMeans, PCA sklearn) сохранен: {fig_path_sklearn}")
+    for cid, region in enumerate(sv.regions):
+        verts = sv.vertices[region]    # (m, 3) вершины сферического полигона
+        # триангуляция "веером" от центроида
+        centroid = verts.mean(axis=0)
+        centroid /= np.linalg.norm(centroid)
+        verts_all = np.vstack([centroid[None, :], verts])
 
-print()
+        tri_i, tri_j, tri_k = [], [], []
+        for j in range(len(verts)):
+            a = 1 + j
+            b = 1 + ((j + 1) % len(verts))
+            tri_i.append(0); tri_j.append(a); tri_k.append(b)
 
-# ========== ИТОГОВАЯ СВОДКА ==========
-print("=== ИТОГОВАЯ СВОДКА ===")
-print(f"Собственная реализация: k* = {k_star}, инерция = {inertia:.4f}")
-if best_solution_sklearn is not None:
-    print(f"Sklearn реализация: k* = {k_star_sk}, инерция = {inertia_sk:.4f}")
-print()
+        patches.append(go.Mesh3d(
+            x=verts_all[:,0], y=verts_all[:,1], z=verts_all[:,2],
+            i=tri_i, j=tri_j, k=tri_k,
+            color=color_for(cid), opacity=0.45,
+            name=f"cluster {cid} region"
+        ))
+except Exception as e:
+    print(f"[WARN] SphericalVoronoi недоступен или не удалось построить области: {e}")
 
-# ========== СОХРАНЕНИЕ ПОЛНОГО ВЫВОДА В ФАЙЛ ==========
-sys.stdout = original_stdout
-with open("lab6_output.txt", "w", encoding="utf-8") as f:
-    f.write(output_buffer.getvalue())
-print("Готово: графики сохранены в figures/, полный консольный вывод записан в lab6_output.txt")
+# 6) Финальная фигура Plotly + сохранение в HTML
+fig = go.Figure(data=[sphere] + patches + scatters)
+fig.update_layout(
+    scene=dict(
+        xaxis=dict(showgrid=False, zeroline=False, title=""),
+        yaxis=dict(showgrid=False, zeroline=False, title=""),
+        zaxis=dict(showgrid=False, zeroline=False, title=""),
+        aspectmode="data"
+    ),
+    margin=dict(l=0, r=0, t=0, b=0),
+    title=f"ЛР6 Вариант 14: кластеры на сфере (k*={k_star}, порог < {radius_threshold})"
+)
+
+import plotly.io as pio
+html_path = os.path.join("figures", "lab6_sphere.html")
+pio.write_html(fig, file=html_path, auto_open=False, include_plotlyjs="cdn")
+print(f"Готово: сферическая визуализация сохранена в {html_path}")
+
