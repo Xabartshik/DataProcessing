@@ -50,14 +50,6 @@ print()
 
 # ================= ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ: КВАДРАТИЧНЫЙ СПЛАЙН =================
 def build_quadratic_spline(x, y, natural="left"):
-    """
-    Строит квадратичный сплайн S_i(x) = a_i + b_i*(x - x_i) + c_i*(x - x_i)^2
-    Условия:
-      - S_i(x_i)  = y_i, S_i(x_{i+1}) = y_{i+1}
-      - S'_i(x_{i+1}) = S'_{i+1}(x_{i+1})
-      - Краевое 'естественное' условие: c_0 = 0 (left) или c_{m-1} = 0 (right)
-    Возвращает arrays a,b,c для отрезков [x_i, x_{i+1}].
-    """
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     if np.any(np.diff(x) <= 0):
@@ -115,15 +107,7 @@ def deriv_quadratic(xq, x, a, b, c):
         dx = xv - x[i]
         dq[idx] = b[i] + 2.0*c[i]*dx
     return dq
-
-# ================= ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ: КУБИЧЕСКИЙ СПЛАЙН =================
 def build_cubic_spline(x, y, bc="natural"):
-    """
-    Строит естественный кубический сплайн:
-      S_i(x) = a_i + b_i*(x - x_i) + c_i*(x - x_i)^2 + d_i*(x - x_i)^3
-    Условия: S, S', S'' непрерывны; natural: S''(x_0)=0, S''(x_n)=0.
-    Возвращает a,b,c,d на каждом отрезке [x_i, x_{i+1}].
-    """
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     if np.any(np.diff(x) <= 0):
@@ -133,10 +117,9 @@ def build_cubic_spline(x, y, bc="natural"):
 
     a = y[:-1].copy()
     b = np.zeros(n)
-    c = np.zeros(n+1)  # заметьте: c определено в узлах
+    c = np.zeros(n+1)
     d = np.zeros(n)
 
-    # Естественные граничные условия
     alpha = np.zeros(n)
     l = np.ones(n+1)
     mu = np.zeros(n+1)
@@ -148,14 +131,12 @@ def build_cubic_spline(x, y, bc="natural"):
         l[i] = 2.0*(x[i+1]-x[i-1]) - h[i-1]*mu[i-1]
         mu[i] = h[i]/l[i]
         z[i] = (alpha[i] - h[i-1]*z[i-1]) / l[i]
-    # natural: c_n = 0
     c[n] = 0.0
     for j in range(n-1, -1, -1):
         c[j] = z[j] - mu[j]*c[j+1]
         b[j] = (y[j+1]-y[j])/h[j] - h[j]*(2.0*c[j] + c[j+1])/3.0
         d[j] = (c[j+1] - c[j]) / (3.0*h[j])
-    # Теперь c[j] — коэффициент при (x-x_j)^2 на отрезке j
-    return a, b, c[:-1], d  # c на отрезках: c[:-1]
+    return a, b, c[:-1], d
 
 def eval_cubic(xq, x, a, b, c, d):
     xq = np.asarray(xq, dtype=float)
