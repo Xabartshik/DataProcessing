@@ -254,6 +254,66 @@ print("График сохранен в файл: bernstein_surface.png")
 plt.show()
 print()
 
+
+# ========== ГРАФИК ОШИБОК ==========
+
+print("=" * 80)
+print("ШАГ 6: АНАЛИЗ ОШИБОК АППРОКСИМАЦИИ")
+print("=" * 80)
+print()
+
+# Таблица ошибок в консоль
+print("Таблица ошибок аппроксимации:")
+print(f"{'№':<3} {'X':<7} {'Y':<7} {'Z_факт':<9} {'Z_апр':<9} {'Погрешность':<12} {'% Отн':<8}")
+print("-" * 70)
+
+for idx in range(n_points):
+    rel_error = (errors[idx] / z_data[idx] * 100) if z_data[idx] != 0 else 0
+    print(f"{idx+1:<3} {x_data[idx]:<7.2f} {y_data[idx]:<7.2f} {z_data[idx]:<9.2f} {z_approx_denorm[idx]:<9.2f} {errors[idx]:<12.6f} {rel_error:<8.2f}%")
+
+print()
+print(f"Статистика по ошибкам:")
+print(f" Средняя абсолютная ошибка (MAE): {mae:.6f}")
+print(f" Максимальная абсолютная ошибка: {max_error:.6f}")
+print(f" Среднеквадратичная ошибка (RMSE): {rmse:.6f}")
+print(f" Минимальная ошибка: {np.min(errors):.6f}")
+print()
+
+# # График ошибок
+# fig_errors = plt.figure(figsize=(14, 5))
+
+# # График 1: Ошибки по точкам
+# ax1 = fig_errors.add_subplot(121)
+# point_indices = np.arange(1, n_points + 1)
+# ax1.bar(point_indices, errors, color='steelblue', edgecolor='black', alpha=0.7)
+# ax1.axhline(y=mae, color='red', linestyle='--', linewidth=2, label=f'MAE = {mae:.4f}')
+# ax1.axhline(y=max_error, color='orange', linestyle='--', linewidth=2, label=f'Max = {max_error:.4f}')
+# ax1.set_xlabel('Номер точки', fontsize=11, fontweight='bold')
+# ax1.set_ylabel('Абсолютная ошибка', fontsize=11, fontweight='bold')
+# ax1.set_title('Ошибки аппроксимации по точкам', fontsize=12, fontweight='bold')
+# ax1.grid(True, alpha=0.3, axis='y')
+# ax1.legend(fontsize=10)
+#
+# # График 2: Линейный график ошибок
+# ax2 = fig_errors.add_subplot(122)
+# ax2.plot(point_indices, errors, marker='o', linestyle='-', linewidth=2,
+#          markersize=6, color='steelblue', label='Ошибка')
+# ax2.axhline(y=mae, color='red', linestyle='--', linewidth=2, label=f'MAE = {mae:.4f}')
+# ax2.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+# ax2.fill_between(point_indices, 0, errors, alpha=0.2, color='steelblue')
+# ax2.set_xlabel('Номер точки', fontsize=11, fontweight='bold')
+# ax2.set_ylabel('Абсолютная ошибка', fontsize=11, fontweight='bold')
+# ax2.set_title('Тренд ошибок аппроксимации', fontsize=12, fontweight='bold')
+# ax2.grid(True, alpha=0.3)
+# ax2.legend(fontsize=10)
+#
+# plt.tight_layout()
+# plt.savefig('bernstein_errors.png', dpi=300, bbox_inches='tight')
+# print("График ошибок сохранен в файл: bernstein_errors.png")
+# plt.show()
+#
+# print()
+
 # ========== ИТОГОВАЯ СВОДКА ==========
 print("=" * 80)
 print("ИТОГОВЫЕ РЕЗУЛЬТАТЫ")
