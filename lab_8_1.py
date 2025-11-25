@@ -188,8 +188,6 @@ for component_idx in range(len(I)):
     chi2_stat = np.sum((obs_adj - exp_adj) ** 2 / exp_adj)
 
     # 6. Число степеней свободы
-    # df = k_adj - 1 - r, где r = 2 (оцененные параметры m, σ)
-    # но в классических учебниках часто пишут df = k_adj - 3
     df = k_adj - 3
 
     # 7. Критическое значение
